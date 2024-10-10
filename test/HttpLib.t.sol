@@ -23,7 +23,8 @@ contract HttpLibTest is Test {
         string[] memory headers = new string[](1);
         headers[0] = "Accept: application/json";
 
-        string memory response = HttpLib.getWithHeaders("https://example-data.draftbit.com/products?_limit=1", headers);
+        string memory response =
+            HttpLib.getWithHeaders("https://example-data.draftbit.com/products?_limit=1", headers);
         emit log_string(response);
     }
 
@@ -33,7 +34,8 @@ contract HttpLibTest is Test {
         string[] memory headers = new string[](1);
         headers[0] = "Content-Type: application/json";
 
-        string memory response = HttpLib.postWithHeaders("https://example-data.draftbit.com/products", data, headers);
+        string memory response =
+            HttpLib.postWithHeaders("https://example-data.draftbit.com/products", data, headers);
         emit log_string(response);
     }
 

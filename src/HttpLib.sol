@@ -9,7 +9,9 @@ library HttpLib {
 
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    function get(string memory url) internal returns (string memory) {
+    function get(
+        string memory url
+    ) internal returns (string memory) {
         string[] memory inputs = new string[](3);
         inputs[0] = "curl";
         inputs[1] = "-s"; // Silent mode
@@ -35,7 +37,10 @@ library HttpLib {
         return string(result);
     }
 
-    function getWithHeaders(string memory url, string[] memory headers) internal returns (string memory) {
+    function getWithHeaders(
+        string memory url,
+        string[] memory headers
+    ) internal returns (string memory) {
         uint256 headerCount = headers.length;
         string[] memory inputs = new string[](3 + headerCount * 2);
         inputs[0] = "curl";
