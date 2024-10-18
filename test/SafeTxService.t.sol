@@ -5,6 +5,7 @@ import {HttpLib} from "../src/HttpLib.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {Operation, ISafeLike} from "../src/interfaces/ISafeLike.sol";
 import {Test, console2 as console} from "forge-std/Test.sol";
+import {SafeTransactionServiceLib} from "../src/SafeTransactionServiceLib.sol";
 
 contract SafeTxServiceTest is Test {
     using stdJson for string;
@@ -27,67 +28,91 @@ contract SafeTxServiceTest is Test {
     }
 
     function testPostSafeMultisigTransaction() public {
-        string memory endpoint = constructApiEndpoint(
-            string.concat("v1/safes/", vm.toString(safe), "/multisig-transactions/")
+        string memory endpoint = SafeTransactionServiceLib.constructApiEndpoint(
+            string.concat("v1/safes/", vm.toString(safe), "/multisig-transactions/"), chainName
         );
 
-        string memory jsonBody = generateSafeMultisigTransactionJson();
+        address to = address(0xDeaD);
+        uint256 value = 1;
+        bytes memory data = "";
+        Operation operation = Operation.Call;
+        uint256 safeTxGas = 0;
+        uint256 baseGas = 0;
+        uint256 gasPrice = 0;
+        address gasToken = address(0);
+        address refundReceiver = address(0);
+        uint256 nonce = ISafeLike(safe).nonce();
+        bytes32 txHash = ISafeLike(safe).getTransactionHash(
+            to,
+            value,
+            data,
+            operation,
+            safeTxGas,
+            baseGas,
+            gasPrice,
+            gasToken,
+            refundReceiver,
+            nonce
+        );
 
-        string[] memory headers = new string[](1);
-        headers[0] = "Content-Type: application/json";
+        bytes memory signature = signAndFormatSignature(txHash);
 
-        HttpLib.postWithHeaders(endpoint, jsonBody, headers);
+        (string memory jsonBody, string[] memory headers) = SafeTransactionServiceLib
+            .postSafeMultisigTransaction(
+            safe,
+            safeSigner,
+            to,
+            value,
+            data,
+            operation,
+            safeTxGas,
+            baseGas,
+            gasPrice,
+            gasToken,
+            refundReceiver,
+            signature
+        );
+
+        string memory response = HttpLib.postWithHeaders(endpoint, jsonBody, headers);
+        console.log("Response from testPostSafeMultisigTransaction:");
+        console.log(response);
     }
 
     function testPostSafeDelegate() public {
-        string memory endpoint = constructApiEndpoint("v2/delegates/");
+        string memory endpoint =
+            SafeTransactionServiceLib.constructApiEndpoint("v2/delegates/", chainName);
 
         address delegate = address(0x1234567890123456789012345678901234567890);
-        uint256 totp = block.timestamp / 3600; // TOTP changes every hour
 
-        bytes32 domainSeparator = getEIP712DomainSeparator();
-
-        bytes32 structHash = keccak256(
-            abi.encode(keccak256("Delegate(address delegateAddress,uint256 totp)"), delegate, totp)
+        bytes32 typedDataHash = SafeTransactionServiceLib.getDelegateTypedDataHash(
+            delegate, block.chainid, block.timestamp
         );
-
-        bytes32 typedDataHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         bytes memory signature = signAndFormatSignature(typedDataHash);
 
-        string memory jsonBody = string(
-            abi.encodePacked(
-                '{"safe":"',
-                vm.toString(safe),
-                '","delegate":"',
-                vm.toString(delegate),
-                '","delegator":"',
-                vm.toString(safeSigner),
-                '","signature":"',
-                vm.toString(signature),
-                '","label":"Test Delegate"}'
-            )
-        );
+        (string memory jsonBody, string[] memory headers) =
+            SafeTransactionServiceLib.postSetDelegate(safe, delegate, safeSigner, signature);
 
-        string[] memory headers = new string[](1);
-        headers[0] = "Content-Type: application/json";
-
-        HttpLib.postWithHeaders(endpoint, jsonBody, headers);
+        string memory response = HttpLib.postWithHeaders(endpoint, jsonBody, headers);
+        console.log("Response from testPostSafeDelegate:");
+        console.log(response);
     }
 
     function testGetSafeMultisigTransactions() public {
-        string memory endpoint = constructApiEndpoint(
-            string.concat("v1/safes/", vm.toString(safe), "/multisig-transactions/")
-        );
+        string memory endpoint = SafeTransactionServiceLib.getMultisigTransactions(safe, chainName);
+        string memory response = HttpLib.get(endpoint);
 
-        HttpLib.get(endpoint);
+        assertTrue(bytes(response).length > 0, "No response");
+        console.log("Response from testGetSafeMultisigTransactions:");
+        console.log(response);
     }
 
     function testProposeTransactionWithDelegate() public {
         uint256 delegatePrivateKey = 0xA11CE;
         address delegate = vm.addr(delegatePrivateKey);
 
-        string memory delegateEndpoint = constructApiEndpoint("v2/delegates/");
+        string memory delegateEndpoint =
+            SafeTransactionServiceLib.constructApiEndpoint("v2/delegates/", chainName);
 
         uint256 totp = block.timestamp / 3600; // basically the signature expires in an hour and can't be replayed
 
@@ -101,26 +126,33 @@ contract SafeTxServiceTest is Test {
 
         bytes memory signature1 = signAndFormatSignature(typedDataHash);
 
-        string memory delegateJsonBody = string(
-            abi.encodePacked(
-                '{"safe":"',
-                vm.toString(safe),
-                '","delegate":"',
-                vm.toString(delegate),
-                '","delegator":"',
-                vm.toString(safeSigner),
-                '","signature":"',
-                vm.toString(signature1),
-                '","label":"Test Delegate"}'
-            )
+        string memory delegateJsonBody = string.concat(
+            "{",
+            '"safe":"',
+            vm.toString(safe),
+            '",',
+            '"delegate":"',
+            vm.toString(delegate),
+            '",',
+            '"delegator":"',
+            vm.toString(safeSigner),
+            '",',
+            '"signature":"',
+            vm.toString(signature1),
+            '",',
+            '"label":"Test Delegate"',
+            "}"
         );
 
         string[] memory delegateHeaders = new string[](1);
         delegateHeaders[0] = "Content-Type: application/json";
 
-        HttpLib.postWithHeaders(delegateEndpoint, delegateJsonBody, delegateHeaders);
+        string memory delegateResponse =
+            HttpLib.postWithHeaders(delegateEndpoint, delegateJsonBody, delegateHeaders);
+        console.log("Response from delegate creation:");
+        console.log(delegateResponse);
 
-        address to = address(0xDead);
+        address to = address(0x420);
         uint256 value = 1;
         bytes memory data = "";
         Operation operation = Operation.Call;
@@ -145,58 +177,61 @@ contract SafeTxServiceTest is Test {
         );
 
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(delegatePrivateKey, txHash);
-        bytes memory signature2 = abi.encodePacked(r2, s2, v2);
+        bytes memory delegateSignature = abi.encodePacked(r2, s2, v2);
 
-        string memory jsonString = string(
-            abi.encodePacked(
-                '{"safe":"',
-                vm.toString(safe),
-                '",',
-                '"to":"',
-                vm.toString(to),
-                '",',
-                '"value":',
-                vm.toString(value),
-                ",",
-                '"data":"',
-                vm.toString(data),
-                '",',
-                '"operation":',
-                vm.toString(uint256(operation)),
-                ",",
-                '"safeTxGas":',
-                vm.toString(safeTxGas),
-                ",",
-                '"baseGas":',
-                vm.toString(baseGas),
-                ",",
-                '"gasPrice":',
-                vm.toString(gasPrice),
-                ",",
-                '"nonce":',
-                vm.toString(nonce),
-                ",",
-                '"contractTransactionHash":"',
-                vm.toString(txHash),
-                '",',
-                '"sender":"',
-                vm.toString(delegate),
-                '",',
-                '"signature":"',
-                "0x",
-                vm.toString(signature2),
-                '",',
-                '"origin":null}'
-            )
+        string memory jsonString = string.concat(
+            "{",
+            '"safe":"',
+            vm.toString(safe),
+            '",',
+            '"to":"',
+            vm.toString(to),
+            '",',
+            '"value":',
+            vm.toString(value),
+            ",",
+            '"data":"',
+            vm.toString(data),
+            '",',
+            '"operation":',
+            vm.toString(uint256(operation)),
+            ",",
+            '"safeTxGas":',
+            vm.toString(safeTxGas),
+            ",",
+            '"baseGas":',
+            vm.toString(baseGas),
+            ",",
+            '"gasPrice":',
+            vm.toString(gasPrice),
+            ",",
+            '"nonce":',
+            vm.toString(nonce),
+            ",",
+            '"contractTransactionHash":"',
+            vm.toString(txHash),
+            '",',
+            '"sender":"',
+            vm.toString(delegate),
+            '",',
+            '"signature":"',
+            "0x",
+            vm.toString(delegateSignature),
+            '",',
+            '"origin":null',
+            "}"
         );
 
-        string memory endpoint = constructApiEndpoint(
-            string.concat("v1/safes/", vm.toString(safe), "/multisig-transactions/")
+        string memory endpoint = SafeTransactionServiceLib.constructApiEndpoint(
+            string.concat("v1/safes/", vm.toString(safe), "/multisig-transactions/"), chainName
         );
         string[] memory transactionHeaders = new string[](1);
         transactionHeaders[0] = "Content-Type: application/json";
 
-        HttpLib.postWithHeaders(endpoint, jsonString, transactionHeaders);
+        string memory transactionResponse =
+            HttpLib.postWithHeaders(endpoint, jsonString, transactionHeaders);
+        console.log("Response from transaction proposal:");
+        console.log(transactionResponse);
     }
 
     function generateSafeMultisigTransactionJson() internal view returns (string memory) {
@@ -283,17 +318,10 @@ contract SafeTxServiceTest is Test {
         );
     }
 
-    function signAndFormatSignature(bytes32 hash) internal view returns (bytes memory) {
+    function signAndFormatSignature(
+        bytes32 hash
+    ) internal view returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         return abi.encodePacked(r, s, v);
-    }
-
-    function constructApiEndpoint(string memory path) internal view returns (string memory) {
-        return string.concat(
-            "https://safe-transaction-",
-            chainName,
-            ".safe.global/api/",
-            path
-        );
     }
 }
