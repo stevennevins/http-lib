@@ -98,12 +98,48 @@ contract SafeTxServiceTest is Test {
         console.log(response);
     }
 
+    function testRemoveSafeDelegate() public {
+        address delegate = address(0x1234567890123456789012345678901234567890);
+        string memory endpoint = SafeTransactionServiceLib.constructApiEndpoint(
+            string.concat("v2/delegates/", vm.toString(delegate), "/"), chainName
+        );
+
+        console.log(endpoint);
+
+        bytes32 typedDataHash = SafeTransactionServiceLib.getDelegateTypedDataHash(
+            delegate, block.chainid, block.timestamp
+        );
+
+        bytes memory signature = signAndFormatSignature(typedDataHash);
+
+        (string memory jsonBody, string[] memory headers) =
+            SafeTransactionServiceLib.delDelegate(safe, delegate, safeSigner, signature);
+
+        string memory response = HttpLib.delWithHeaders(endpoint, jsonBody, headers);
+        console.log("Response from testDelSafeDelegate:");
+        console.log(response);
+    }
+
     function testGetSafeMultisigTransactions() public {
         string memory endpoint = SafeTransactionServiceLib.getMultisigTransactions(safe, chainName);
         string memory response = HttpLib.get(endpoint);
 
         assertTrue(bytes(response).length > 0, "No response");
         console.log("Response from testGetSafeMultisigTransactions:");
+        console.log(response);
+    }
+
+    function testGetPendingTransactions() public {
+        (string memory queryParams, string[] memory headers) =
+            SafeTransactionServiceLib.getSafePendingTransactions(safe);
+        string memory endpoint = string.concat(
+            SafeTransactionServiceLib.getMultisigTransactions(safe, chainName), queryParams
+        );
+
+        string memory response = HttpLib.getWithHeaders(endpoint, headers);
+
+        assertTrue(bytes(response).length > 0, "No response");
+        console.log("Response from testGetPendingTransactions:");
         console.log(response);
     }
 

@@ -91,4 +91,34 @@ library HttpLib {
 
         return string(result);
     }
+
+    function delWithHeaders(
+        string memory url,
+        string memory data,
+        string[] memory headers
+    ) internal returns (string memory) {
+        uint256 headerCount = headers.length;
+        string[] memory inputs = new string[](7 + headerCount * 2);
+        inputs[0] = "curl";
+        inputs[1] = "-s";
+        inputs[2] = "-X";
+        inputs[3] = "DELETE";
+
+        uint256 index = 4;
+
+        for (uint256 i = 0; i < headerCount; i++) {
+            inputs[index] = "-H";
+            index += 1;
+            inputs[index] = headers[i];
+            index += 1;
+        }
+
+        inputs[index] = "-d";
+        inputs[index + 1] = data;
+        inputs[index + 2] = url;
+
+        bytes memory result = vm.ffi(inputs);
+
+        return string(result);
+    }
 }

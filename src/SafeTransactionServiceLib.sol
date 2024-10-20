@@ -231,4 +231,41 @@ library SafeTransactionServiceLib {
 
         return (jsonBody, headers);
     }
+
+    function getSafePendingTransactions(
+        address safe
+    ) internal pure returns (string memory, string[] memory) {
+        string memory queryParams = string.concat("?address=", vm.toString(safe), "&executed=false");
+
+        string[] memory headers = new string[](1);
+        headers[0] = "Content-Type: application/json";
+
+        return (queryParams, headers);
+    }
+
+    function delDelegate(
+        address safe,
+        address delegate,
+        address delegator,
+        bytes memory signature
+    ) internal pure returns (string memory, string[] memory) {
+        string memory jsonBody = string(
+            abi.encodePacked(
+                '{"safe":"',
+                vm.toString(safe),
+                '","delegate":"',
+                vm.toString(delegate),
+                '","delegator":"',
+                vm.toString(delegator),
+                '","signature":"',
+                vm.toString(signature),
+                '","label":"Test Delegate"}'
+            )
+        );
+
+        string[] memory headers = new string[](1);
+        headers[0] = "Content-Type: application/json";
+
+        return (jsonBody, headers);
+    }
 }
